@@ -265,8 +265,12 @@ func (parser *Parser) mapStage(stageMap map[interface{}]interface{},
 	}
 
 	stageOpts := stages.NewStageOpts()
-	if reportingFullOutput := mergedStageMap["report_full_output"]; reportingFullOutput != nil {
-		stageOpts.ReportingFullOutput = true
+	if value, exists := mergedStageMap["report_full_output"]; exists {
+		enabled, ok := value.(bool)
+		if !ok {
+			return nil, fmt.Errorf("stage %q: report_full_output must be a boolean", stage.GetStageName())
+		}
+		stageOpts.ReportingFullOutput = enabled
 	}
 	stage.SetStageOpts(*stageOpts)
 
