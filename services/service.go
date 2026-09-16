@@ -62,6 +62,9 @@ func LoadLastUpdate(fname string) (Update, error) {
 	file, err := ioutil.ReadFile(fname)
 	log.Infof("opening file: \"%s\"...", fname)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			return Update{}, fmt.Errorf("read service state: %w", err)
+		}
 		log.Warnf("error occured opening file: \"%s\" ...", fname)
 		log.Warn(err.Error())
 		log.Warnf("continue the process with the new settings")
@@ -75,14 +78,7 @@ func LoadLastUpdate(fname string) (Update, error) {
 	log.Infof("loading last update form \"%s\"\n", string(file))
 	var update Update
 	if err := json.Unmarshal(file, &update); err != nil {
-		log.Warnf("failed to load \"%s\" ...", fname)
-		log.Warn(err.Error())
-		log.Warnf("continue the process with the new settings")
-		update := Update{
-			Time:      time.Now(),
-			Succeeded: true,
-			Status:    "inprogress"}
-		return update, nil
+		return Update{}, fmt.Errorf("invalid service state: %w", err)
 	}
 
 	if update.Status == "inprogress" {
