@@ -303,6 +303,19 @@ The following shows the description of each element.
 |   update  |  Update file which contains the result and time of the last execution  (default **.walter**)                                         |
 |   branch  |  Branch name pattern (When this value is filled, Walter only checks the branches who name is matched with the filled regex pattern)  |
 
+Repository service locking
+--------------------------
+
+Service mode holds a non-blocking process lock at `<update-file>.lock` for the
+whole run. All runners for the same repository must use the same update-file path
+on a filesystem supporting advisory locks. Keep the lock sidecar in place; the
+operating system releases its lock when the process exits.
+
+Unreadable, malformed, or `inprogress` state stops execution without overwriting
+the state. After an interrupted run leaves `inprogress`, verify that no old runner
+is active and reconcile the checkout and deployment outcome before repairing the
+state. Do not delete an active lock file to bypass the guard.
+
 ## Embedding Environment Variables
 
 Users add environment variables in Walter configuration files. The names of environment variables are expanted into the the values of environment variables.
@@ -402,15 +415,3 @@ The 1.5.0 fork updates the Go toolchain and dependencies, treats shell script fi
 
 Linux arm64 binaries are native; select the archive matching the target architecture. Verify its SHA-256 against `checksums.txt` before installing.
 
-Repository service locking
---------------------------
-
-Service mode holds a non-blocking process lock at `<update-file>.lock` for the
-whole run. All runners for the same repository must use the same update-file path
-on a filesystem supporting advisory locks. Keep the lock sidecar in place; the
-operating system releases its lock when the process exits.
-
-Unreadable, malformed, or `inprogress` state stops execution without overwriting
-the state. After an interrupted run leaves `inprogress`, verify that no old runner
-is active and reconcile the checkout and deployment outcome before repairing the
-state. Do not delete an active lock file to bypass the guard.
