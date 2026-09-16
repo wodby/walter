@@ -82,9 +82,19 @@ func (e *Walter) Run() bool {
 }
 
 func (e *Walter) runService() bool {
+	release, err := services.AcquireRunLock(e.Engine.Resources.RepoService.GetUpdateFilePath())
+	if err != nil {
+		log.Errorf("Cannot start service run: %s", err)
+		return false
+	}
+	defer release()
 	// load .walter-update
 	log.Infof("Loading update file... \"%s\"", e.Engine.Resources.RepoService.GetUpdateFilePath())
 	update, err := services.LoadLastUpdate(e.Engine.Resources.RepoService.GetUpdateFilePath())
+	if err != nil {
+		log.Errorf("Cannot load service state: %s", err)
+		return false
+	}
 	log.Infof("Succeeded loading update file")
 
 	log.Info("Updating status...")
