@@ -401,3 +401,19 @@ Pipeline files execute shell commands and must be trusted. Do not run pipelines 
 The 1.5.0 fork updates the Go toolchain and dependencies, treats shell script filenames literally, writes status files atomically with owner-only permissions, and rejects malformed wait conditions without panicking. Notification requests have a 30-second timeout and a 64 KiB response limit, reject redirects and non-success HTTP statuses, and do not log notification payloads or webhook URLs. Configure the final notification endpoint directly when migrating an endpoint that redirects.
 
 Linux arm64 binaries are native; select the archive matching the target architecture. Verify its SHA-256 against `checksums.txt` before installing.
+
+Stage result environments
+-------------------------
+
+Command and `only_if` expressions receive the result variables they explicitly
+reference, including `__OUT["build"]` or `$__OUT__build__`. Results no longer modify
+Walter's global environment or leak into unrelated commands. A script that reads a
+result internally must receive it explicitly in its invoking command, for example
+`BUILD_OUTPUT="$__OUT__build__" sh script.sh`.
+
+Raw result values are limited to 32 KiB each and 64 KiB per command; binary values
+containing NUL cannot be environment values. Larger or binary results are available
+without truncation through `__OUT_FILE["build"]`, `__ERR_FILE["build"]`, and
+`__COMBINED_FILE["build"]` (or `$__OUT_FILE__build__` and corresponding forms).
+These variables contain paths to private temporary files, available through cleanup
+stages and removed afterward. For example: `cat "$__OUT_FILE__build__"`.

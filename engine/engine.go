@@ -53,6 +53,7 @@ func (r *Result) IsSucceeded() bool {
 
 // RunOnce executes the pipeline and the cleanup prccedures.
 func (e *Engine) RunOnce() *Result {
+	defer e.EnvVariables.Close()
 	pipeResult := e.executePipeline(e.Resources.Pipeline, "pipeline")
 	cleanupResult := e.executePipeline(e.Resources.Cleanup, "cleanup")
 	return &Result{Pipeline: &pipeResult, Cleanup: &cleanupResult}
@@ -114,6 +115,11 @@ func (e *Engine) executeChildStages(stage *stages.Stage, mediator *stages.Mediat
 func (e *Engine) executeStage(stage stages.Stage, received []stages.Mediator, mediator stages.Mediator) string {
 	var result string
 	if !e.isUpstreamAnyFailure(received) || e.Opts.StopOnAnyFailure {
+		if receiver, ok := stage.(interface {
+			SetEnvironment(func(string) ([]string, error))
+		}); ok {
+			receiver.SetEnvironment(e.EnvVariables.CommandEnvironment)
+		}
 		result = strconv.FormatBool(stage.(stages.Runner).Run())
 		e.EnvVariables.ExportSpecialVariable("__OUT[\""+stage.GetStageName()+"\"]", stage.GetOutResult())
 		e.EnvVariables.ExportSpecialVariable("__ERR[\""+stage.GetStageName()+"\"]", stage.GetErrResult())
@@ -196,7 +202,7 @@ func (e *Engine) finalizeMonitorChAfterExecute(mediators []stages.Mediator, medi
 	}
 }
 
-//Execute executes a stage using the supplied mediator
+// Execute executes a stage using the supplied mediator
 func (e *Engine) Execute(stage stages.Stage, mediator stages.Mediator) stages.Mediator {
 	mediator.Type = "start"
 	name := stage.GetStageName()

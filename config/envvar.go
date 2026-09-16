@@ -20,8 +20,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
@@ -31,17 +33,19 @@ import (
 // EnvVariables is a set of environment variables contains all the variables
 // defined when the walter command is executed.
 type EnvVariables struct {
-	mu         sync.RWMutex
-	variables  *map[string]string
-	envPattern *regexp.Regexp
-	spPattern  *regexp.Regexp
+	mu             sync.RWMutex
+	resultFiles    map[string]string
+	temporaryFiles []string
+	variables      *map[string]string
+	envPattern     *regexp.Regexp
+	spPattern      *regexp.Regexp
 }
 
 // NewEnvVariables creates one EnvVariable object.
 func NewEnvVariables() *EnvVariables {
 	envmap := loadEnvMap()
 	envPattern, _ := regexp.Compile("[$]([a-zA-Z_]+)")
-	spPattern, _ := regexp.Compile("(__RESULT|__OUT|__ERR|__COMBINED)\\[\"([a-zA-Z_0-9 ]+)\"\\]")
+	spPattern, _ := regexp.Compile("(__RESULT|__OUT(?:_FILE)?|__ERR(?:_FILE)?|__COMBINED(?:_FILE)?)\\[\"([a-zA-Z_0-9 ]+)\"\\]")
 
 	return &EnvVariables{
 		variables:  &envmap,
@@ -72,7 +76,8 @@ func (envVariables *EnvVariables) ExportSpecialVariable(key string, value string
 	envVariables.mu.Lock()
 	defer envVariables.mu.Unlock()
 	(*envVariables.variables)[replaced] = value
-	os.Setenv(replaced, value) //NOTE: export environment variable
+	delete(envVariables.resultFiles, replaced)
+	// Results stay local to this pipeline; commands receive only requested values.
 }
 
 // Replace replaces all environment variables in a line
@@ -127,4 +132,80 @@ func loadEnvMap() map[string]string {
 		envs[curEnv[0]] = curEnv[1]
 	}
 	return envs
+}
+
+// resultReference recognizes result variables explicitly used by a command.
+var resultReference = regexp.MustCompile(`\$\{?((?:__RESULT|__OUT(?:_FILE)?|__ERR(?:_FILE)?|__COMBINED(?:_FILE)?)__[a-zA-Z_0-9]+__)`)
+var resultName = regexp.MustCompile(`^(?:__RESULT|__OUT(?:_FILE)?|__ERR(?:_FILE)?|__COMBINED(?:_FILE)?)__[a-zA-Z_0-9]+__$`)
+
+// CommandEnvironment snapshots only explicitly referenced results. Large output
+// can be consumed through __OUT_FILE, __ERR_FILE, or __COMBINED_FILE instead.
+func (e *EnvVariables) CommandEnvironment(command string) ([]string, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	env := make([]string, 0)
+	for _, entry := range os.Environ() {
+		name, _, _ := strings.Cut(entry, "=")
+		if !resultName.MatchString(name) {
+			env = append(env, entry)
+		}
+	}
+	keys := make(map[string]bool)
+	for _, match := range resultReference.FindAllStringSubmatch(command, -1) {
+		keys[match[1]] = true
+	}
+	ordered := make([]string, 0, len(keys))
+	for key := range keys {
+		ordered = append(ordered, key)
+	}
+	sort.Strings(ordered)
+	size := 0
+	for _, key := range ordered {
+		source := strings.Replace(key, "_FILE__", "__", 1)
+		value, exists := (*e.variables)[source]
+		if !exists {
+			continue
+		}
+		if source != key {
+			if e.resultFiles == nil {
+				e.resultFiles = make(map[string]string)
+			}
+			filename := e.resultFiles[source]
+			if filename == "" {
+				f, err := os.CreateTemp("", "walter-output-*")
+				if err != nil {
+					return nil, fmt.Errorf("create result file: %w", err)
+				}
+				filename = f.Name()
+				_, writeErr := f.WriteString(value)
+				closeErr := f.Close()
+				if writeErr != nil || closeErr != nil {
+					os.Remove(filename)
+					return nil, fmt.Errorf("write result file for %s", source)
+				}
+				e.resultFiles[source] = filename
+				e.temporaryFiles = append(e.temporaryFiles, filename)
+			}
+			value = filename
+		} else if len(value) > 32<<10 || strings.ContainsRune(value, 0) {
+			return nil, fmt.Errorf("result %s cannot be passed through the environment; use its _FILE result variable", key)
+		}
+		size += len(key) + len(value) + 2
+		if size > 64<<10 {
+			return nil, fmt.Errorf("requested results exceed 64 KiB; use _FILE result variables")
+		}
+		env = append(env, key+"="+value)
+	}
+	return env, nil
+}
+
+// Close removes result files after pipeline and cleanup stages have finished.
+func (e *EnvVariables) Close() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, path := range e.temporaryFiles {
+		os.Remove(path)
+	}
+	e.resultFiles = nil
+	e.temporaryFiles = nil
 }
