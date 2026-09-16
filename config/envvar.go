@@ -23,6 +23,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/wodby/walter/log"
 )
@@ -30,6 +31,7 @@ import (
 // EnvVariables is a set of environment variables contains all the variables
 // defined when the walter command is executed.
 type EnvVariables struct {
+	mu         sync.RWMutex
 	variables  *map[string]string
 	envPattern *regexp.Regexp
 	spPattern  *regexp.Regexp
@@ -51,18 +53,24 @@ func NewEnvVariables() *EnvVariables {
 // Get returns the value of envionment variable.
 func (envVariables *EnvVariables) Get(vname string) (string, bool) {
 	replaced := envVariables.replaceSpecialVariable(vname)
+	envVariables.mu.RLock()
+	defer envVariables.mu.RUnlock()
 	val, ok := (*envVariables.variables)[replaced]
 	return val, ok
 }
 
 // Add appends the value to specified envionment variable.
 func (envVariables *EnvVariables) Add(key string, value string) {
+	envVariables.mu.Lock()
+	defer envVariables.mu.Unlock()
 	(*envVariables.variables)[key] = value
 }
 
 // ExportSpecialVariable appends the value of special variable as a envionment variable.
 func (envVariables *EnvVariables) ExportSpecialVariable(key string, value string) {
 	replaced := envVariables.replaceSpecialVariable(key)
+	envVariables.mu.Lock()
+	defer envVariables.mu.Unlock()
 	(*envVariables.variables)[replaced] = value
 	os.Setenv(replaced, value) //NOTE: export environment variable
 }
@@ -99,7 +107,10 @@ func (envVariables *EnvVariables) replaceSpecialVariable(key string) string {
 func (envVariables *EnvVariables) regexReplace(input string) string {
 	matched := (*envVariables.envPattern).FindStringSubmatch(input)
 	if len(matched) == 2 {
-		if replaced := (*envVariables.variables)[matched[1]]; replaced != "" {
+		envVariables.mu.RLock()
+		replaced := (*envVariables.variables)[matched[1]]
+		envVariables.mu.RUnlock()
+		if replaced != "" {
 			return replaced
 		}
 		log.Warnf("NO environment variable: %s", matched[0])
