@@ -430,3 +430,15 @@ Pipeline files execute shell commands and must be trusted. Do not run pipelines 
 The 1.5.0 fork updates the Go toolchain and dependencies, treats shell script filenames literally, writes status files atomically with owner-only permissions, and rejects malformed wait conditions without panicking. Notification requests have a 30-second timeout and a 64 KiB response limit, reject redirects and non-success HTTP statuses, and do not log notification payloads or webhook URLs. Configure the final notification endpoint directly when migrating an endpoint that redirects.
 
 Linux arm64 binaries are native; select the archive matching the target architecture. Verify its SHA-256 against `checksums.txt` before installing.
+
+Exact revisions in service mode
+--------------------------------
+
+Repository service mode fetches the requested commit and runs it in a temporary,
+detached Git worktree. A pull request whose head changed since discovery is
+rejected for that run. The pipeline configuration must be inside the repository;
+relative paths and scripts resolve in the isolated checkout. The caller's checkout
+and local changes remain untouched. Success is reported only for the verified SHA,
+and a failure to publish the status fails the service run. Failed runs retain the
+previous discovery checkpoint for retry; successful runs advance only to the start
+of discovery so changes arriving during execution are not skipped.

@@ -19,9 +19,15 @@
 package walter
 
 import (
+	"flag"
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/go-github/v92/github"
@@ -108,6 +114,7 @@ func (e *Walter) runService() bool {
 
 	// get latest commit and pull requests
 	log.Info("downloading commits and pull requests...")
+	polledAt := time.Now()
 	commits, err := e.Engine.Resources.RepoService.GetCommits(update)
 	if err != nil {
 		log.Errorf("Failed getting commits: %s", err)
@@ -140,7 +147,10 @@ func (e *Walter) runService() bool {
 	// save .walter-update
 	log.Info("Saving update file...")
 	update.Status = "finished"
-	update.Time = time.Now()
+	if !hasFailedProcess {
+		update.Time = polledAt
+	}
+	update.Succeeded = !hasFailedProcess
 	result = services.SaveLastUpdate(e.Engine.Resources.RepoService.GetUpdateFilePath(), update)
 	if result == false {
 		log.Error("Failed to save update")
@@ -150,94 +160,133 @@ func (e *Walter) runService() bool {
 }
 
 func (e *Walter) processTrunkCommit(commit github.RepositoryCommit) bool {
-	log.Infof("Checkout master branch")
-	_, err := exec.Command("git", "checkout", "master", "-f").Output()
-	if err != nil {
-		log.Errorf("Failed to checkout master branch: %s", err)
-		return false
-	}
-	log.Infof("Downloading new commit from master")
-	_, err = exec.Command("git", "pull", "origin", "master").Output()
-	if err != nil {
-		log.Errorf("Failed to download new commit from master: %s", err)
-		return false
-	}
-	log.Infof("Running the latest commit in master")
-	w, err := New(e.Opts)
-	if err != nil {
-		log.Errorf("Failed to create Walter object...: %s", err)
-		log.Error("Skip execution...")
-		return false
-	}
-	result := w.Engine.RunOnce()
-
-	// register the result to hosting service
-	if result.IsSucceeded() {
-		log.Info("Succeeded.")
-		e.Engine.Resources.RepoService.RegisterResult(
-			services.Result{
-				State:   "success",
-				Message: "Succeeded running pipeline...",
-				SHA:     *commit.SHA})
-		return true
-	}
-	log.Error("Error reported...")
-	e.Engine.Resources.RepoService.RegisterResult(
-		services.Result{
-			State:   "failure",
-			Message: "Failed running pipleline ...",
-			SHA:     *commit.SHA})
-	return false
-
+	return e.processCommit(commit.GetSHA(), "", e.runWorktreePipeline)
 }
 
 func (e *Walter) processPullRequest(pullrequest github.PullRequest) bool {
-	// checkout pullrequest
-	num := *pullrequest.Number
-	_, err := exec.Command("git", "fetch", "origin", "refs/pull/"+strconv.Itoa(num)+"/head:pr_"+strconv.Itoa(num)).Output()
-
-	defer exec.Command("git", "checkout", "master", "-f").Output() // TODO: make trunk branch configurable
-	defer log.Info("returning master branch...")
-
-	if err != nil {
-		log.Errorf("Failed to fetch pull request: %s", err)
+	if pullrequest.GetNumber() <= 0 {
+		log.Error("Invalid pull request number")
 		return false
 	}
+	return e.processCommit(pullrequest.GetHead().GetSHA(), "refs/pull/"+strconv.Itoa(pullrequest.GetNumber())+"/head", e.runWorktreePipeline)
+}
 
-	_, err = exec.Command("git", "checkout", "pr_"+strconv.Itoa(num)).Output()
-	if err != nil {
-		log.Errorf("Failed to checkout pullrequest branch (\"%s\") : %s", "pr_"+strconv.Itoa(num), err)
-		log.Error("Skip execution...")
+var commitID = regexp.MustCompile(`^[0-9a-fA-F]{40}$`)
+
+// gitOutput runs git without shell interpolation and keeps operations in one repository.
+func gitOutput(root string, args ...string) (string, error) {
+	command := exec.Command("git", append([]string{"-C", root}, args...)...)
+	output, err := command.Output()
+	return strings.TrimSpace(string(output)), err
+}
+
+// processCommit runs an immutable revision in an isolated worktree and reports
+// success only while HEAD still identifies that exact revision.
+func (e *Walter) processCommit(sha, ref string, run func(string, string) bool) bool {
+	if !commitID.MatchString(sha) {
+		log.Error("Invalid commit SHA")
 		return false
 	}
-
-	// run pipeline
-	log.Info("Running pipeline...")
-	w, err := New(e.Opts)
+	sha = strings.ToLower(sha)
+	root, err := gitOutput(".", "rev-parse", "--show-toplevel")
 	if err != nil {
-		log.Errorf("Failed to create Walter object...: %s", err)
-		log.Error("Skip execution...")
+		log.Error("Cannot locate repository")
 		return false
 	}
-
-	result := w.Engine.RunOnce()
-
-	// register the result to hosting service
-	if result.IsSucceeded() {
-		log.Info("succeeded.")
-		e.Engine.Resources.RepoService.RegisterResult(
-			services.Result{
-				State:   "success",
-				Message: "Succeeded running pipeline...",
-				SHA:     *pullrequest.Head.SHA})
-		return true
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return false
 	}
-	log.Error("Error reported...")
-	e.Engine.Resources.RepoService.RegisterResult(
-		services.Result{
-			State:   "failure",
-			Message: "Failed running pipleline ...",
-			SHA:     *pullrequest.Head.SHA})
-	return false
+	pipeline, err := filepath.Abs(e.Opts.PipelineFilePath)
+	if err != nil {
+		return false
+	}
+	pipeline, err = filepath.EvalSymlinks(pipeline)
+	if err != nil {
+		return false
+	}
+	relative, err := filepath.Rel(root, pipeline)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		log.Error("Service pipeline must be inside the repository")
+		return false
+	}
+	if ref == "" {
+		ref = sha
+	}
+	if _, err = gitOutput(root, "fetch", "--no-tags", "origin", ref); err != nil {
+		log.Error("Cannot fetch requested revision")
+		return false
+	}
+	fetched, err := gitOutput(root, "rev-parse", "FETCH_HEAD^{commit}")
+	if err != nil || fetched != sha {
+		log.Error("Remote revision changed; refusing to test a different commit")
+		return false
+	}
+	temporary, err := os.MkdirTemp("", "walter-checkout-*")
+	if err != nil {
+		return false
+	}
+	defer os.RemoveAll(temporary)
+	checkout := filepath.Join(temporary, "tree")
+	if _, err = gitOutput(root, "worktree", "add", "--detach", checkout, sha); err != nil {
+		log.Error("Cannot create isolated checkout")
+		return false
+	}
+	defer func() {
+		if _, err := gitOutput(root, "worktree", "remove", "--force", checkout); err != nil {
+			log.Error("Cannot remove isolated checkout")
+		}
+	}()
+	head, err := gitOutput(checkout, "rev-parse", "HEAD")
+	if err != nil || head != sha {
+		log.Error("Checkout SHA does not match requested revision")
+		return false
+	}
+	passed := run(checkout, relative)
+	head, err = gitOutput(checkout, "rev-parse", "HEAD")
+	if err != nil || head != sha {
+		log.Error("Pipeline changed the checkout revision")
+		return false
+	}
+	state := "failure"
+	if passed {
+		state = "success"
+	}
+	if err = e.Engine.Resources.RepoService.RegisterResult(services.Result{State: state, SHA: sha, Message: "Finished running pipeline"}); err != nil {
+		log.Error("Failed to publish commit result")
+		return false
+	}
+	return passed
+}
 
+// runWorktreePipeline uses a child process so relative paths, required files,
+// scripts, and PWD all resolve within the tested checkout without global chdir.
+func (e *Walter) runWorktreePipeline(checkout, pipeline string) bool {
+	binary, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	return e.runPipelineProcess(binary, checkout, pipeline)
+}
+
+// runPipelineProcess executes the same CLI in an isolated working directory.
+func (e *Walter) runPipelineProcess(binary, checkout, pipeline string) bool {
+	args := []string{"-mode", "local", "-c", pipeline}
+	if e.Opts.StopOnAnyFailure {
+		args = append(args, "-f")
+	}
+	for _, setting := range []struct{ source, target string }{{"stderrthreshold", "threshold"}, {"log_dir", "logDir"}} {
+		if value := flag.Lookup(setting.source); value != nil && value.Value.String() != "" {
+			args = append(args, "-"+setting.target, value.Value.String())
+		}
+	}
+	command := exec.Command(binary, args...)
+	command.Dir = checkout
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	if err := command.Run(); err != nil {
+		log.Error(fmt.Sprintf("Pipeline process failed: %v", err))
+		return false
+	}
+	return true
 }
