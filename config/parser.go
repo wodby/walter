@@ -27,11 +27,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/walter-cd/walter/log"
-	"github.com/walter-cd/walter/messengers"
-	"github.com/walter-cd/walter/pipelines"
-	"github.com/walter-cd/walter/services"
-	"github.com/walter-cd/walter/stages"
+	"github.com/wodby/walter/log"
+	"github.com/wodby/walter/messengers"
+	"github.com/wodby/walter/pipelines"
+	"github.com/wodby/walter/services"
+	"github.com/wodby/walter/stages"
 )
 
 // Parser struct used to store config data and environment variables

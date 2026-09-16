@@ -15,16 +15,16 @@
  * limitations under the License.
  */
 
-//Package messengers provides all functionality for the suported messengers
+// Package messengers provides all functionality for the suported messengers
 package messengers
 
 import (
-	"github.com/andybons/hipchat"
-	"github.com/walter-cd/walter/log"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
-// HipChat is a client which reports the pipeline results to the HipChat server.
-// The client uses V1 of the HipChat API.
+// HipChat reports pipeline results using the legacy V1 API.
 type HipChat struct {
 	BaseMessenger `config:"suppress"`
 	RoomID        string `config:"room_id"`
@@ -32,21 +32,14 @@ type HipChat struct {
 	From          string `config:"from"`
 }
 
-// Post posts a hipchat message
-// TODO: make hipchat api endpoint configurable for on-premises servers
-func (hipChat *HipChat) Post(message string, color ...string) bool {
-	client := hipchat.Client{AuthToken: hipChat.Token}
-	req := hipchat.MessageRequest{
-		RoomId:        hipChat.RoomID,
-		From:          hipChat.From,
-		Message:       message,
-		Color:         hipchat.ColorPurple,
-		MessageFormat: hipchat.FormatText,
-		Notify:        true,
-	}
-	if err := client.PostMessage(req); err != nil {
-		log.Errorf("Failed post message...: %s", message)
+// Post sends a notification without following redirects or logging its contents.
+func (hc *HipChat) Post(message string, color ...string) bool {
+	endpoint := "https://api.hipchat.com/v1/rooms/message?" + url.Values{"auth_token": {hc.Token}, "format": {"json"}}.Encode()
+	body := url.Values{"room_id": {hc.RoomID}, "from": {hc.From}, "message": {message}, "color": {"purple"}, "message_format": {"text"}, "notify": {"1"}}
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(body.Encode()))
+	if err != nil {
 		return false
 	}
-	return true
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return postNotification(req)
 }

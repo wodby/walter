@@ -15,11 +15,12 @@
  * limitations under the License.
  */
 
-//Package stages contains functionality for managing stage lifecycle
+// Package stages contains functionality for managing stage lifecycle
 package stages
 
 import (
-	"github.com/walter-cd/walter/log"
+	"github.com/wodby/walter/log"
+	"strings"
 )
 
 // ShellScriptStage executes one shell script file.
@@ -43,11 +44,11 @@ func (shellScriptStage *ShellScriptStage) Run() bool {
 		log.Infof("failed preCheck before running script...")
 		return false
 	}
-	shellScriptStage.AddCommand("sh " + shellScriptStage.File)
+	shellScriptStage.AddCommand("sh -- '" + strings.ReplaceAll(shellScriptStage.File, "'", "'\"'\"'") + "'")
 	return shellScriptStage.CommandStage.Run()
 }
 
-//NewShellScriptStage generate one ShellScriptStage object.
+// NewShellScriptStage generate one ShellScriptStage object.
 func NewShellScriptStage() *ShellScriptStage {
 	return &ShellScriptStage{}
 }

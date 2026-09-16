@@ -15,7 +15,7 @@
 * limitations under the License.
  */
 
-//Package walter is the main package for the walter application
+// Package walter is the main package for the walter application
 package walter
 
 import (
@@ -24,12 +24,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/go-github/github"
-	"github.com/walter-cd/walter/config"
-	"github.com/walter-cd/walter/engine"
-	"github.com/walter-cd/walter/log"
-	"github.com/walter-cd/walter/services"
-	"github.com/walter-cd/walter/stages"
+	"github.com/google/go-github/v92/github"
+	"github.com/wodby/walter/config"
+	"github.com/wodby/walter/engine"
+	"github.com/wodby/walter/log"
+	"github.com/wodby/walter/services"
+	"github.com/wodby/walter/stages"
 )
 
 // Walter object.

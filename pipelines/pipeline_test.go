@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/walter-cd/walter/stages"
+	"github.com/wodby/walter/stages"
 )
 
 func createStage(stageType string) stages.Stage {

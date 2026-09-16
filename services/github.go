@@ -15,20 +15,22 @@
  * limitations under the License.
  */
 
-//Package services provides the functionality for all supported services (GitHub)
+// Package services provides the functionality for all supported services (GitHub)
 package services
 
 import (
 	"container/list"
+	"context"
+	"net/http"
 	"net/url"
 	"regexp"
+	"time"
 
-	"github.com/google/go-github/github"
-	"github.com/walter-cd/walter/log"
-	"golang.org/x/oauth2"
+	"github.com/google/go-github/v92/github"
+	"github.com/wodby/walter/log"
 )
 
-//GitHubClient struct
+// GitHubClient struct
 type GitHubClient struct {
 	Repo         string `config:"repo"`
 	From         string `config:"from"`
@@ -38,7 +40,7 @@ type GitHubClient struct {
 	BaseUrl      *url.URL
 }
 
-//GetUpdateFilePath returns the update file name
+// GetUpdateFilePath returns the update file name
 func (githubClient *GitHubClient) GetUpdateFilePath() string {
 	if githubClient.UpdateFile != "" {
 		return githubClient.UpdateFile
@@ -47,25 +49,20 @@ func (githubClient *GitHubClient) GetUpdateFilePath() string {
 
 }
 
-//RegisterResult registers the supplied result
+// RegisterResult registers the supplied result
 func (githubClient *GitHubClient) RegisterResult(result Result) error {
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: githubClient.Token},
-	)
-	tc := oauth2.NewClient(oauth2.NoContext, ts)
-	client := github.NewClient(tc)
-
-	if githubClient.BaseUrl != nil {
-		client.BaseURL = githubClient.BaseUrl
+	client, err := githubClient.newClient()
+	if err != nil {
+		return err
 	}
 
 	log.Info("Submitting result")
 	repositories := client.Repositories
-	status, _, err := repositories.CreateStatus(
+	status, _, err := repositories.CreateStatus(context.Background(),
 		githubClient.From,
 		githubClient.Repo,
 		result.SHA,
-		&github.RepoStatus{
+		github.RepoStatus{
 			State:       github.String(result.State),
 			TargetURL:   github.String(result.Url),
 			Description: github.String(result.Message),
@@ -78,18 +75,17 @@ func (githubClient *GitHubClient) RegisterResult(result Result) error {
 	return err
 }
 
-//GetCommits get a list of all the commits for the current update
+// GetCommits get a list of all the commits for the current update
 func (githubClient *GitHubClient) GetCommits(update Update) (*list.List, error) {
 	log.Info("getting commits\n")
 	commits := list.New()
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: githubClient.Token},
-	)
-	tc := oauth2.NewClient(oauth2.NoContext, ts)
-	client := github.NewClient(tc)
+	client, err := githubClient.newClient()
+	if err != nil {
+		return nil, err
+	}
 
 	// get a list of pull requests with Pull Request API
-	pullreqs, _, err := client.PullRequests.List(
+	pullreqs, _, err := client.PullRequests.List(context.Background(),
 		githubClient.From, githubClient.Repo,
 		&github.PullRequestListOptions{})
 	if err != nil {
@@ -105,6 +101,9 @@ func (githubClient *GitHubClient) GetCommits(update Update) (*list.List, error) 
 
 	log.Infof("Size of pull reqests: %d", len(pullreqs))
 	for _, pullreq := range pullreqs {
+		if pullreq.Head == nil || pullreq.Head.Ref == nil || pullreq.State == nil || pullreq.Number == nil || pullreq.UpdatedAt == nil || pullreq.Head.SHA == nil {
+			continue
+		}
 		log.Infof("Branch name is \"%s\"", *pullreq.Head.Ref)
 
 		if githubClient.TargetBranch != "" {
@@ -117,15 +116,34 @@ func (githubClient *GitHubClient) GetCommits(update Update) (*list.List, error) 
 
 		if *pullreq.State == "open" && pullreq.UpdatedAt.After(update.Time) {
 			log.Infof("Adding pullrequest %d", *pullreq.Number)
-			commits.PushBack(pullreq)
+			commits.PushBack(*pullreq)
 		}
 	}
 
 	// get the latest commit with Commit API if the commit is newer than last update
-	masterCommits, _, _ := client.Repositories.ListCommits(
+	masterCommits, _, err := client.Repositories.ListCommits(context.Background(),
 		githubClient.From, githubClient.Repo, &github.CommitsListOptions{})
-	if masterCommits[0].Commit.Author.Date.After(update.Time) {
-		commits.PushBack(masterCommits[0])
+	if err != nil {
+		return nil, err
+	}
+	if len(masterCommits) > 0 && masterCommits[0].GetCommit().GetAuthor().GetDate().After(update.Time) {
+		commits.PushBack(*masterCommits[0])
 	}
 	return commits, nil
+}
+
+// newClient confines authenticated requests to the configured endpoint.
+func (c *GitHubClient) newClient() (*github.Client, error) {
+	options := []github.ClientOptionsFunc{github.WithHTTPClient(&http.Client{
+		Timeout:       30 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	})}
+	if c.Token != "" {
+		options = append(options, github.WithAuthToken(c.Token))
+	}
+	if c.BaseUrl != nil {
+		base := c.BaseUrl.String()
+		options = append(options, github.WithURLs(&base, nil))
+	}
+	return github.NewClient(options...)
 }

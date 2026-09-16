@@ -15,62 +15,41 @@
  * limitations under the License.
  */
 
-//Package messengers provides all functionality for the suported messengers
+// Package messengers provides all functionality for the suported messengers
 package messengers
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
 	"net/url"
-
-	"github.com/tbruyelle/hipchat-go/hipchat"
-	"github.com/walter-cd/walter/log"
+	"strings"
 )
 
-// HipChat2 is a client which reports the pipeline results to the HipChat server.
-// The client uses V2 of the HipChat API.
+// HipChat2 reports pipeline results using the V2 API.
 type HipChat2 struct {
 	BaseMessenger `config:"suppress"`
 	RoomID        string `config:"room_id"`
 	Token         string `config:"token"`
 	From          string `config:"from"`
 	BaseURL       string `config:"base_url"`
-	client        *hipchat.Client
 }
 
-// Post sends a new HipChat message using V2 of the API
+// Post sends a notification to the configured server with bounded HTTP handling.
 func (hc *HipChat2) Post(message string, color ...string) bool {
-	if hc.client == nil {
-		hc.client = hc.newClient()
-		if hc.client == nil {
-			return false
-		}
+	base := hc.BaseURL
+	if base == "" {
+		base = "https://api.hipchat.com/v2"
 	}
-
-	msg := &hipchat.NotificationRequest{
-		Color:         "purple",
-		Message:       message,
-		Notify:        true,
-		MessageFormat: "text",
-	}
-
-	if _, err := hc.client.Room.Notification(hc.RoomID, msg); err != nil {
-		log.Errorf("Failed post message...: %s", msg.Message)
+	payload, err := json.Marshal(map[string]interface{}{"color": "purple", "message": message, "notify": true, "message_format": "text"})
+	if err != nil {
 		return false
 	}
-
-	return true
-}
-
-func (hc *HipChat2) newClient() *hipchat.Client {
-	client := hipchat.NewClient(hc.Token)
-	if hc.BaseURL == "" {
-		return client
-	}
-
-	baseURL, err := url.Parse(hc.BaseURL)
+	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(base, "/")+"/room/"+url.PathEscape(hc.RoomID)+"/notification", bytes.NewReader(payload))
 	if err != nil {
-		log.Errorf("Invalid Hipchat Base URL...: %s", err.Error())
-		return nil
+		return false
 	}
-	client.BaseURL = baseURL
-	return client
+	req.Header.Set("Authorization", "Bearer "+hc.Token)
+	req.Header.Set("Content-Type", "application/json")
+	return postNotification(req)
 }

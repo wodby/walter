@@ -15,10 +15,9 @@
  * limitations under the License.
  */
 
-
 // Package main provides a command line tool, walter.
 //
-// See the usage: https://github.com/walter-cd/walter
+// See the usage: https://github.com/wodby/walter
 package main
 
 import (
@@ -26,10 +25,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/walter-cd/walter/config"
-	"github.com/walter-cd/walter/log"
-	"github.com/walter-cd/walter/version"
-	"github.com/walter-cd/walter/walter"
+	"github.com/wodby/walter/config"
+	"github.com/wodby/walter/log"
+	"github.com/wodby/walter/version"
+	"github.com/wodby/walter/walter"
 )
 
 func main() {
@@ -54,7 +53,8 @@ func main() {
 	if err != nil {
 		log.Error(err.Error())
 		log.Error("failed to create Walter")
-		return
+		log.Flush()
+		os.Exit(1)
 	}
 	log.Info("running Walter")
 	result := walter.Run()

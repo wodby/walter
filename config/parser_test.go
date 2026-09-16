@@ -20,9 +20,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/walter-cd/walter/messengers"
-	"github.com/walter-cd/walter/services"
-	"github.com/walter-cd/walter/stages"
+	"github.com/wodby/walter/messengers"
+	"github.com/wodby/walter/services"
+	"github.com/wodby/walter/stages"
 )
 
 func TestParseFromFile(t *testing.T) {

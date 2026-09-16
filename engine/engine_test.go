@@ -20,10 +20,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/walter-cd/walter/config"
-	"github.com/walter-cd/walter/messengers"
-	"github.com/walter-cd/walter/pipelines"
-	"github.com/walter-cd/walter/stages"
+	"github.com/wodby/walter/config"
+	"github.com/wodby/walter/messengers"
+	"github.com/wodby/walter/pipelines"
+	"github.com/wodby/walter/stages"
 )
 
 func createShellScriptStage(name string, fileName string) *stages.ShellScriptStage {

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-//Package messengers provides all functionality for the suported messengers
+// Package messengers provides all functionality for the suported messengers
 package messengers
 
 import (
@@ -29,17 +29,17 @@ type Messenger interface {
 	Suppress(string) bool
 }
 
-//BaseMessenger struct
+// BaseMessenger struct
 type BaseMessenger struct {
 	SuppressFields []string `config:"suppress"`
 }
 
-//Post posts the supplied message
+// Post posts the supplied message
 func (baseMessenger *BaseMessenger) Post(messege string) bool {
 	return true
 }
 
-//Suppress idenitifies if the supplied output type is a suppressed field
+// Suppress idenitifies if the supplied output type is a suppressed field
 func (baseMessenger *BaseMessenger) Suppress(outputType string) bool {
 	for _, suppress := range baseMessenger.SuppressFields {
 		if suppress == outputType {

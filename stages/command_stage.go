@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-//Package stages contains functionality for managing stage lifecycle
+// Package stages contains functionality for managing stage lifecycle
 package stages
 
 import (
@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/walter-cd/walter/log"
+	"github.com/wodby/walter/log"
 )
 
 // CommandStage executes more than one commands.
@@ -119,7 +119,7 @@ func isFileExist(fileName string) bool {
 }
 
 func isConnect(host string, port int) bool {
-	conn, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 5*time.Second)
 	if err != nil {
 		return false
 	}
@@ -209,7 +209,7 @@ func validateWaitForCondition(wait *WaitFor) bool {
 	return true
 }
 
-//GetStdoutResult returns the stdio output from the command.
+// GetStdoutResult returns the stdio output from the command.
 func (commandStage *CommandStage) GetStdoutResult() string {
 	return commandStage.OutResult
 }
@@ -217,7 +217,9 @@ func (commandStage *CommandStage) GetStdoutResult() string {
 // Run registered commands.
 func (commandStage *CommandStage) Run() bool {
 	// Check WaitFor
-	commandStage.waitFor()
+	if !commandStage.waitFor() {
+		return false
+	}
 
 	// Check OnlyIf
 	if commandStage.runOnlyIf() == false {
@@ -233,12 +235,17 @@ func (commandStage *CommandStage) Run() bool {
 	return result
 }
 
-func (commandStage *CommandStage) waitFor() {
+func (commandStage *CommandStage) waitFor() bool {
 	if commandStage.WaitFor == "" {
-		return
+		return true
 	}
-	cond, _ := ParseWaitFor(commandStage.WaitFor) // TODO: error handling
+	cond, err := ParseWaitFor(commandStage.WaitFor)
+	if err != nil {
+		log.Error("Invalid wait_for condition")
+		return false
+	}
 	cond.Wait()
+	return true
 }
 
 func (commandStage *CommandStage) runOnlyIf() bool {
@@ -275,7 +282,7 @@ func execCommand(cmd *exec.Cmd, prefix string, name string) (bool, *string, *str
 	if err != nil {
 		log.Warnf("[command] %s err: %s", prefix, outPipe)
 		log.Warnf("[command] %s err: %s", prefix, err)
-		return false, nil, nil, nil
+		return false, new(string), new(string), new(string)
 	}
 
 	errPipe, err := cmd.StderrPipe()
@@ -283,7 +290,7 @@ func execCommand(cmd *exec.Cmd, prefix string, name string) (bool, *string, *str
 	if err != nil {
 		log.Warnf("[command] %s err: %s", prefix, errPipe)
 		log.Warnf("[command] %s err: %s", prefix, err)
-		return false, nil, nil, nil
+		return false, new(string), new(string), new(string)
 	}
 
 	var bufout, buferr bytes.Buffer
@@ -293,7 +300,7 @@ func execCommand(cmd *exec.Cmd, prefix string, name string) (bool, *string, *str
 
 	if err = cmd.Start(); err != nil {
 		log.Warnf("[command] %s err: %s", prefix, err)
-		return false, nil, nil, nil
+		return false, new(string), new(string), new(string)
 	}
 
 	var combinedResult string
@@ -349,18 +356,18 @@ func printOutput(r io.Reader, prefix string, name string, out chan string, done 
 	done <- true
 }
 
-//AddCommand registers the specified command.
+// AddCommand registers the specified command.
 func (commandStage *CommandStage) AddCommand(command string) {
 	commandStage.Command = command
 	commandStage.BaseStage.Runner = commandStage
 }
 
-//SetDirectory sets the directory where the command is executed.
+// SetDirectory sets the directory where the command is executed.
 func (commandStage *CommandStage) SetDirectory(directory string) {
 	commandStage.Directory = directory
 }
 
-//NewCommandStage creates one CommandStage object.
+// NewCommandStage creates one CommandStage object.
 func NewCommandStage() *CommandStage {
 	stage := CommandStage{Directory: "."}
 	return &stage

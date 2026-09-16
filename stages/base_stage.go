@@ -21,7 +21,7 @@ package stages
 import (
 	"container/list"
 
-	"github.com/walter-cd/walter/log"
+	"github.com/wodby/walter/log"
 )
 
 // BaseStage is an abstract struct implemented by the inherited struct that wishes to run somthing
@@ -67,13 +67,13 @@ type BaseStage struct {
 	End int64
 }
 
-//StageOpts struct for handing stage outputs
+// StageOpts struct for handing stage outputs
 type StageOpts struct {
 	// Flush all output when the value is true.
 	ReportingFullOutput bool `config:"report_full_output"`
 }
 
-//NewStageOpts creates a new stage output
+// NewStageOpts creates a new stage output
 func NewStageOpts() *StageOpts {
 	return &StageOpts{
 		ReportingFullOutput: false,
@@ -100,7 +100,7 @@ func (b *BaseStage) GetChildStages() list.List {
 	return b.ChildStages
 }
 
-//GetStageName returns the name of the current stage
+// GetStageName returns the name of the current stage
 func (b *BaseStage) GetStageName() string {
 	return b.StageName
 }

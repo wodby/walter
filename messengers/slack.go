@@ -15,17 +15,14 @@
  * limitations under the License.
  */
 
-//Package messengers provides all functionality for the suported messengers
+// Package messengers provides all functionality for the suported messengers
 package messengers
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
-
-	"github.com/walter-cd/walter/log"
 )
 
 // Slack is a client which reports the pipeline results to the Slack chennel.
@@ -38,15 +35,16 @@ type Slack struct {
 	IncomingURL   string `config:"url" json:"-"` // not map to json
 }
 
-//FakeSlack To avoid the infinite recursion
+// FakeSlack To avoid the infinite recursion
 // (see http://stackoverflow.com/questions/23045884/can-i-use-marshaljson-to-add-arbitrary-fields-to-a-json-encoding-in-golang)
 type FakeSlack Slack
 
-//Post posts a message to slack
+// Post posts a message to slack
 func (slack *Slack) Post(message string, c ...string) bool {
-	if slack.Channel[0] != '#' {
-		log.Infof("Add # to channel name: %s", slack.Channel)
-		slack.Channel = "#" + slack.Channel
+	// Do not mutate shared configuration when parallel stages notify.
+	copySlack := *slack
+	if copySlack.Channel != "" && !strings.HasPrefix(copySlack.Channel, "#") {
+		copySlack.Channel = "#" + copySlack.Channel
 	}
 
 	var color string
@@ -73,24 +71,14 @@ func (slack *Slack) Post(message string, c ...string) bool {
 		FakeSlack
 		Attachments []map[string]string `json:"attachments"`
 	}{
-		FakeSlack:   FakeSlack(*slack),
+		FakeSlack:   FakeSlack(copySlack),
 		Attachments: attachments,
 	})
 
-	resp, err := http.PostForm(
-		slack.IncomingURL,
-		url.Values{"payload": {string(params)}},
-	)
+	req, err := http.NewRequest(http.MethodPost, slack.IncomingURL, strings.NewReader(url.Values{"payload": {string(params)}}.Encode()))
 	if err != nil {
-		log.Errorf("Failed post message to Slack...: %s", message)
 		return false
 	}
-	defer resp.Body.Close()
-
-	if body, err := ioutil.ReadAll(resp.Body); err == nil {
-		log.Infof("Slack post result...: %s", body)
-		return true
-	}
-	log.Errorf("Failed to read result from Slack...")
-	return false
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return postNotification(req)
 }

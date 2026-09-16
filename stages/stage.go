@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-//Package stages contains functionality for managing stage lifecycle
+// Package stages contains functionality for managing stage lifecycle
 package stages
 
 import (

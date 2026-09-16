@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/walter-cd/walter/messengers"
-	"github.com/walter-cd/walter/services"
-	"github.com/walter-cd/walter/stages"
+	"github.com/wodby/walter/messengers"
+	"github.com/wodby/walter/services"
+	"github.com/wodby/walter/stages"
 )
 
 // Pipeline stores the list of stages.
@@ -102,10 +102,10 @@ func (resources *Pipeline) GetStageResult(name string, stageType string) (string
 		case "__RESULT":
 			return strconv.FormatBool(stage.GetReturnValue()), nil
 		default:
-			return "", fmt.Errorf("no specified type: " + stageType)
+			return "", fmt.Errorf("no specified type: %s", stageType)
 		}
 	}
-	return "", fmt.Errorf("no specified stage name: " + name)
+	return "", fmt.Errorf("no specified stage name: %s", name)
 }
 
 // Size returns the number of stages in the pipeline.
@@ -113,7 +113,7 @@ func (resources *Pipeline) Size() int {
 	return resources.Stages.Len()
 }
 
-//Build builds a pipeline for the current resources
+// Build builds a pipeline for the current resources
 func (resources *Pipeline) Build() {
 	resources.buildDeps(&resources.Stages)
 }
@@ -121,7 +121,7 @@ func (resources *Pipeline) Build() {
 func (resources *Pipeline) buildDeps(stages *list.List) {
 }
 
-//NewPipeline create a new pipeline instance
+// NewPipeline create a new pipeline instance
 func NewPipeline() *Pipeline {
 	return &Pipeline{}
 }

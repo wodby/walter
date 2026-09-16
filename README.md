@@ -1,11 +1,7 @@
 Walter
 ========
 
-<p align="center">
-<img src="https://dl.dropboxusercontent.com/u/10177896/walter-logo-readme.png"/>
-</p>
-
-[![wercker status](https://app.wercker.com/status/4fcb4b110909fc45775d12641f5cf037/m "wercker status")](https://app.wercker.com/project/bykey/4fcb4b110909fc45775d12641f5cf037)
+This is Wodby's maintained 1.x fork of [walter-cd/walter](https://github.com/walter-cd/walter), based on 1.4.0. It preserves the existing pipeline configuration format.
 
 Walter is a tiny deployment pipeline template.
 
@@ -25,8 +21,8 @@ Getting Started
 
 Requirements
 -------------
-- Go 1.3 or greater
-- Mercurial 2.9 or greater
+- Go 1.27.1 or greater
+- A POSIX shell and the commands used by your pipeline
 
 How to Build
 -------------
@@ -34,7 +30,7 @@ How to Build
 You can build Walter with the following commands.
 
 ```
-$ git clone git@github.com:walter-cd/walter.git
+$ git clone git@github.com:wodby/walter.git
 $ cd walter
 $ ./build
 ```
@@ -397,3 +393,17 @@ There are seveal **state** values and possible state values are depend on the ot
 |:------------------|:----------------------------------------------------|
 | present / ready   | Specified port is ready or file is created.         |
 | absent  / unready | port is not active or file does not exist           |
+
+Release packaging
+=================
+
+`VERSION=1.5.0 ./scripts/package` creates static Linux amd64 and arm64 archives and `checksums.txt` under `dist/`. The Dockerfile runs tests and packages both architectures with the pinned Go toolchain. Keep the toolchain and modules updated, and run `govulncheck ./...` before publishing a release.
+
+Security and compatibility
+==========================
+
+Pipeline files execute shell commands and must be trusted. Do not run pipelines from untrusted pull requests with deployment credentials. Walter is not a sandbox.
+
+The 1.5.0 fork updates the Go toolchain and dependencies, treats shell script filenames literally, writes status files atomically with owner-only permissions, and rejects malformed wait conditions without panicking. Notification requests have a 30-second timeout and a 64 KiB response limit, reject redirects and non-success HTTP statuses, and do not log notification payloads or webhook URLs. Configure the final notification endpoint directly when migrating an endpoint that redirects.
+
+Linux arm64 binaries are native; select the archive matching the target architecture. Verify its SHA-256 against `checksums.txt` before installing.

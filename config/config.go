@@ -23,11 +23,7 @@ import (
 	"flag"
 	"io/ioutil"
 
-	"github.com/go-yaml/yaml"
-)
-
-var (
-	fs = flag.NewFlagSet("walter", flag.ExitOnError)
+	"go.yaml.in/yaml/v2"
 )
 
 // Opts contains a set of configuration options.
@@ -40,6 +36,7 @@ type Opts struct {
 
 // LoadOpts defines the prameters of the walter command.
 func LoadOpts(arguments []string) (*Opts, error) {
+	fs := flag.NewFlagSet("walter", flag.ContinueOnError)
 	var pipelineFilePath string
 	var stopOnAnyFailure bool
 	var printVersion bool
@@ -61,7 +58,7 @@ func LoadOpts(arguments []string) (*Opts, error) {
 	flag.CommandLine.Lookup("stderrthreshold").Value.Set(threshold)
 
 	if logDir != "" {
-		flag.CommandLine.Lookup("logDir").Value.Set(logDir)
+		flag.CommandLine.Lookup("log_dir").Value.Set(logDir)
 	}
 
 	return &Opts{

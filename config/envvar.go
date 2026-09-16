@@ -24,7 +24,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/walter-cd/walter/log"
+	"github.com/wodby/walter/log"
 )
 
 // EnvVariables is a set of environment variables contains all the variables
@@ -112,7 +112,7 @@ func (envVariables *EnvVariables) regexReplace(input string) string {
 func loadEnvMap() map[string]string {
 	envs := make(map[string]string)
 	for _, envVal := range os.Environ() {
-		curEnv := strings.Split(envVal, "=")
+		curEnv := strings.SplitN(envVal, "=", 2)
 		envs[curEnv[0]] = curEnv[1]
 	}
 	return envs

@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+: "${VERSION:?Set VERSION to the release version}"
+case "$VERSION" in *[!0-9.]*|'') echo 'Invalid release version' >&2; exit 1;; esac
+mkdir -p dist
+for arch in amd64 arm64; do
+ stage=$(mktemp -d)
+ CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -mod=readonly -trimpath -buildvcs=false -ldflags "-s -w -buildid= -X github.com/wodby/walter/version.Version=$VERSION" -o "$stage/walter" .
+ cp LICENSE.txt CONTRIBUTORS.md go.mod go.sum "$stage/"
+ mkdir -p "$stage/third-party-licenses"
+ go list -m -f '{{if not .Main}}{{.Path}} {{.Dir}}{{end}}' all | while read -r module directory; do
+  [ -n "$module" ] || continue
+  mkdir -p "$stage/third-party-licenses/$module"
+  for license in "$directory"/LICENSE* "$directory"/NOTICE*; do
+   [ ! -f "$license" ] || cp "$license" "$stage/third-party-licenses/$module/"
+  done
+ done
+ tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -C "$stage" -cf - walter LICENSE.txt CONTRIBUTORS.md go.mod go.sum third-party-licenses | gzip -n > "dist/walter_${VERSION}_linux_${arch}.tar.gz"
+ rm -rf "$stage"
+done
+(cd dist && sha256sum "walter_${VERSION}_linux_"*.tar.gz > checksums.txt)

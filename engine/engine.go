@@ -23,10 +23,10 @@ import (
 	//	"os"
 	"strconv"
 
-	"github.com/walter-cd/walter/config"
-	"github.com/walter-cd/walter/log"
-	"github.com/walter-cd/walter/pipelines"
-	"github.com/walter-cd/walter/stages"
+	"github.com/wodby/walter/config"
+	"github.com/wodby/walter/log"
+	"github.com/wodby/walter/pipelines"
+	"github.com/wodby/walter/stages"
 )
 
 // Engine executes the its pipeline.

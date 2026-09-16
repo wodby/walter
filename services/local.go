@@ -15,25 +15,25 @@
 * limitations under the License.
  */
 
-//Package services provides the functionality for all supported services (GitHub)
+// Package services provides the functionality for all supported services (GitHub)
 package services
 
 import "container/list"
 
-//LocalClient struct
+// LocalClient struct
 type LocalClient struct{}
 
-//RegisterResult resgisters the supplied result
+// RegisterResult resgisters the supplied result
 func (localClient *LocalClient) RegisterResult(result Result) error {
 	return nil
 }
 
-//GetCommits gets the commits for the current update
+// GetCommits gets the commits for the current update
 func (localClient *LocalClient) GetCommits(update Update) (*list.List, error) {
 	return list.New(), nil
 }
 
-//GetUpdateFilePath returns the update file path
+// GetUpdateFilePath returns the update file path
 func (localClient *LocalClient) GetUpdateFilePath() string {
 	return ""
 }

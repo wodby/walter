@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-//Package stages contains functionality for managing stage lifecycle
+// Package stages contains functionality for managing stage lifecycle
 package stages
 
 import (
@@ -23,7 +23,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/walter-cd/walter/log"
+	"github.com/wodby/walter/log"
 )
 
 // ResourceValidator class check if the resources to run the target staget are satisfied.
@@ -32,7 +32,7 @@ type ResourceValidator struct {
 	command string
 }
 
-//Validate validates if the command can be executed
+// Validate validates if the command can be executed
 func (resourceValidator *ResourceValidator) Validate() bool {
 	// check if files exists
 	for file := resourceValidator.files.Front(); file != nil; file = file.Next() {
@@ -58,18 +58,18 @@ func (resourceValidator *ResourceValidator) Validate() bool {
 	return true
 }
 
-//AddFile add the suplied file to the validator file list
+// AddFile add the suplied file to the validator file list
 // TODO add permission
 func (resourceValidator *ResourceValidator) AddFile(f string) {
 	resourceValidator.files.PushBack(f)
 }
 
-//AddCommandName adds the command to the validator
+// AddCommandName adds the command to the validator
 func (resourceValidator *ResourceValidator) AddCommandName(c string) {
 	resourceValidator.command = c
 }
 
-//NewResourceValidator creates a new ResourceValidator
+// NewResourceValidator creates a new ResourceValidator
 func NewResourceValidator() *ResourceValidator {
 	validator := ResourceValidator{}
 	return &validator
