@@ -364,6 +364,22 @@ pipeline:
 
 Walter with the above configuraiton outputs "hello world" twice, since the second stage (stage\_2) flushes the standard output result of first stage (stage\_1).
 
+Stage result environments
+-------------------------
+
+Command and `only_if` expressions receive the result variables they explicitly
+reference, including `__OUT["build"]` or `$__OUT__build__`. Results no longer modify
+Walter's global environment or leak into unrelated commands. A script that reads a
+result internally must receive it explicitly in its invoking command, for example
+`BUILD_OUTPUT="$__OUT__build__" sh script.sh`.
+
+Raw result values are limited to 32 KiB each and 64 KiB per command; binary values
+containing NUL cannot be environment values. Larger or binary results are available
+without truncation through `__OUT_FILE["build"]`, `__ERR_FILE["build"]`, and
+`__COMBINED_FILE["build"]` (or `$__OUT_FILE__build__` and corresponding forms).
+These variables contain paths to private temporary files, available through cleanup
+stages and removed afterward. For example: `cat "$__OUT_FILE__build__"`.
+
 ## Wait running stages until the conditions are satisfied
 
 Walter stage starts imidiately after the previous stage finish, but some stages need to wait for some action such as port is ready or file are created.

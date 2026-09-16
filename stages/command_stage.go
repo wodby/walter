@@ -36,6 +36,8 @@ import (
 
 // CommandStage executes more than one commands.
 type CommandStage struct {
+	environment func(string) ([]string, error)
+	commandEnv  []string
 	BaseStage
 	Command   string `config:"command" is_replace:"false"`
 	Directory string `config:"directory" is_replace:"true"`
@@ -216,6 +218,14 @@ func (commandStage *CommandStage) GetStdoutResult() string {
 
 // Run registered commands.
 func (commandStage *CommandStage) Run() bool {
+	if commandStage.environment != nil {
+		env, err := commandStage.environment(commandStage.Command + "\n" + commandStage.OnlyIf)
+		if err != nil {
+			log.Error(err.Error())
+			return false
+		}
+		commandStage.commandEnv = env
+	}
 	// Check WaitFor
 	if !commandStage.waitFor() {
 		return false
@@ -257,6 +267,7 @@ func (commandStage *CommandStage) runOnlyIf() bool {
 	log.Infof("[command] only_if: %s", commandStage.BaseStage.StageName)
 	log.Debugf("[command] only_if literal: %s", commandStage.OnlyIf)
 	cmd.Dir = commandStage.Directory
+	cmd.Env = commandStage.commandEnv
 	result, _, _, _ := execCommand(cmd, "only_if", commandStage.BaseStage.StageName)
 	return result
 }
@@ -266,6 +277,7 @@ func (commandStage *CommandStage) runCommand() bool {
 	log.Infof("[command] exec: %s", commandStage.BaseStage.StageName)
 	log.Debugf("[command] exec command literal: %s", commandStage.Command)
 	cmd.Dir = commandStage.Directory
+	cmd.Env = commandStage.commandEnv
 	commandStage.SetStart(time.Now().Unix())
 	result, outResult, errResult, combinedResult := execCommand(cmd, "exec", commandStage.BaseStage.StageName)
 	commandStage.SetEnd(time.Now().Unix())
@@ -372,3 +384,6 @@ func NewCommandStage() *CommandStage {
 	stage := CommandStage{Directory: "."}
 	return &stage
 }
+
+// SetEnvironment supplies a per-command snapshot without mutating process state.
+func (c *CommandStage) SetEnvironment(build func(string) ([]string, error)) { c.environment = build }

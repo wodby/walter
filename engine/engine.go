@@ -53,6 +53,7 @@ func (r *Result) IsSucceeded() bool {
 
 // RunOnce executes the pipeline and the cleanup prccedures.
 func (e *Engine) RunOnce() *Result {
+	defer e.EnvVariables.Close()
 	pipeResult := e.executePipeline(e.Resources.Pipeline, "pipeline")
 	cleanupResult := e.executePipeline(e.Resources.Cleanup, "cleanup")
 	return &Result{Pipeline: &pipeResult, Cleanup: &cleanupResult}
@@ -84,6 +85,11 @@ func (e *Engine) receiveInputs(inputCh *chan stages.Mediator) []stages.Mediator 
 
 // ExecuteStage executes the supplied stage
 func (e *Engine) ExecuteStage(stage stages.Stage) {
+	if receiver, ok := stage.(interface {
+		SetEnvironment(func(string) ([]string, error))
+	}); ok {
+		receiver.SetEnvironment(e.EnvVariables.CommandEnvironment)
+	}
 	log.Debug("Receiving input")
 	mediatorsReceived := e.receiveInputs(stage.GetInputCh())
 
