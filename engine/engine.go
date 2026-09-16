@@ -93,7 +93,7 @@ func (e *Engine) ExecuteStage(stage stages.Stage) {
 	log.Debugf("Execute as parent name %+v", stage.GetStageName())
 
 	mediator := stages.Mediator{States: make(map[string]string)}
-	mediator.States[stage.GetStageName()] = e.executeStage(stage, mediatorsReceived, mediator)
+	e.executeStage(stage, mediatorsReceived, mediator)
 
 	log.Debugf("Sending output of stage: %+v %v", stage.GetStageName(), mediator)
 	*stage.GetOutputCh() <- mediator
@@ -113,8 +113,12 @@ func (e *Engine) executeChildStages(stage *stages.Stage, mediator *stages.Mediat
 
 func (e *Engine) executeStage(stage stages.Stage, received []stages.Mediator, mediator stages.Mediator) string {
 	var result string
-	if !e.isUpstreamAnyFailure(received) || e.Opts.StopOnAnyFailure {
+	// Top-level stages may continue without -f; dependent children must never
+	// run after their prerequisite failed.
+	isChild := len(received) > 0 && received[0].Type != "start"
+	if !e.isUpstreamAnyFailure(received) || (!e.Opts.StopOnAnyFailure && !isChild) {
 		result = strconv.FormatBool(stage.(stages.Runner).Run())
+		mediator.States[stage.GetStageName()] = result
 		e.EnvVariables.ExportSpecialVariable("__OUT[\""+stage.GetStageName()+"\"]", stage.GetOutResult())
 		e.EnvVariables.ExportSpecialVariable("__ERR[\""+stage.GetStageName()+"\"]", stage.GetErrResult())
 		e.EnvVariables.ExportSpecialVariable("__COMBINED[\""+stage.GetStageName()+"\"]", stage.GetCombinedResult())
@@ -128,6 +132,7 @@ func (e *Engine) executeStage(stage stages.Stage, received []stages.Mediator, me
 			}
 		}
 		result = "skipped"
+		mediator.States[stage.GetStageName()] = result
 	}
 	if !stage.GetSuppressAll() {
 		e.Resources.ReportStageResult(stage, result)
@@ -196,7 +201,7 @@ func (e *Engine) finalizeMonitorChAfterExecute(mediators []stages.Mediator, medi
 	}
 }
 
-//Execute executes a stage using the supplied mediator
+// Execute executes a stage using the supplied mediator
 func (e *Engine) Execute(stage stages.Stage, mediator stages.Mediator) stages.Mediator {
 	mediator.Type = "start"
 	name := stage.GetStageName()
