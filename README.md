@@ -5,12 +5,6 @@ This is Wodby's maintained 1.x fork of [walter-cd/walter](https://github.com/wal
 
 Walter is a tiny deployment pipeline template.
 
-Blogs
-==========
-
-* http://ainoya.io/walter
-* http://walter-cd.net
-
 Overview
 ==========
 
