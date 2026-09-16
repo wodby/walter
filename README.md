@@ -417,4 +417,3 @@ Pipeline files execute shell commands and must be trusted. Do not run pipelines 
 The 1.5.0 fork updates the Go toolchain and dependencies, treats shell script filenames literally, writes status files atomically with owner-only permissions, and rejects malformed wait conditions without panicking. Notification requests have a 30-second timeout and a 64 KiB response limit, reject redirects and non-success HTTP statuses, and do not log notification payloads or webhook URLs. Configure the final notification endpoint directly when migrating an endpoint that redirects.
 
 Linux arm64 binaries are native; select the archive matching the target architecture. Verify its SHA-256 against `checksums.txt` before installing.
-

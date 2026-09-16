@@ -85,6 +85,11 @@ func (e *Engine) receiveInputs(inputCh *chan stages.Mediator) []stages.Mediator 
 
 // ExecuteStage executes the supplied stage
 func (e *Engine) ExecuteStage(stage stages.Stage) {
+	if receiver, ok := stage.(interface {
+		SetEnvironment(func(string) ([]string, error))
+	}); ok {
+		receiver.SetEnvironment(e.EnvVariables.CommandEnvironment)
+	}
 	log.Debug("Receiving input")
 	mediatorsReceived := e.receiveInputs(stage.GetInputCh())
 
@@ -115,11 +120,7 @@ func (e *Engine) executeChildStages(stage *stages.Stage, mediator *stages.Mediat
 func (e *Engine) executeStage(stage stages.Stage, received []stages.Mediator, mediator stages.Mediator) string {
 	var result string
 	if !e.isUpstreamAnyFailure(received) || e.Opts.StopOnAnyFailure {
-		if receiver, ok := stage.(interface {
-			SetEnvironment(func(string) ([]string, error))
-		}); ok {
-			receiver.SetEnvironment(e.EnvVariables.CommandEnvironment)
-		}
+
 		result = strconv.FormatBool(stage.(stages.Runner).Run())
 		e.EnvVariables.ExportSpecialVariable("__OUT[\""+stage.GetStageName()+"\"]", stage.GetOutResult())
 		e.EnvVariables.ExportSpecialVariable("__ERR[\""+stage.GetStageName()+"\"]", stage.GetErrResult())
