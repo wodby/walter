@@ -120,7 +120,6 @@ func (e *Engine) executeChildStages(stage *stages.Stage, mediator *stages.Mediat
 func (e *Engine) executeStage(stage stages.Stage, received []stages.Mediator, mediator stages.Mediator) string {
 	var result string
 	if !e.isUpstreamAnyFailure(received) || e.Opts.StopOnAnyFailure {
-
 		result = strconv.FormatBool(stage.(stages.Runner).Run())
 		e.EnvVariables.ExportSpecialVariable("__OUT[\""+stage.GetStageName()+"\"]", stage.GetOutResult())
 		e.EnvVariables.ExportSpecialVariable("__ERR[\""+stage.GetStageName()+"\"]", stage.GetErrResult())
